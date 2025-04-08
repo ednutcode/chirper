@@ -1,150 +1,81 @@
+// commands/user.js
+
 const { Composer } = require('grammy');
+//const db = require('../db/database'); // Import the database connection 
 const sqlite3 = require('sqlite3').verbose();
-const config = require('../config');
+const db = new sqlite3.Database('./db/data.db');
 
-const userMiddleware = new Composer();
+const { getUserRole } = require('../utils/utils'); // Utility function to fetch user roles
 
-userMiddleware.command('user', async (ctx) => {
-    const [cmd, mention] = user ? user.text : null;
+const userCommand = new Composer();
 
-    if (cmd === 'add' || cmd === 'delete' || cmd === 'info' || cmd === 'setadmin') {
-        const user = ctx.message.mentions && ctx.message.mentions.users && ctx.message.mentions.users.first();
-        const member = ctx.message.guild.member(user);
+userCommand.command('user', async (ctx) => {
+    console.log(`📥 Received /user command from: ${ctx.from.id}`);
 
-        if (!user) {
-            return ctx.reply('You didn\'t mention the user. Example: /user add @user');
+    // Parse the command arguments
+    const args = ctx.message.text.split(' ').slice(1);
+    const command = args[0]; // Subcommand (e.g., add, remove, setadmin, etc.)
+    const targetId = args[1]; // Target user ID or username
+
+    if (!command) {
+        // If no subcommand is provided, show usage instructions
+        return ctx.reply('❓ Usage: /user add|remove|setadmin|setmod|list');
+    }
+
+    try {
+        // Fetch the role of the user issuing the command
+        const userRole = await getUserRole(ctx.from.id);
+        console.log(`🔍 ${ctx.from.id} role: ${userRole}`);
+
+        if (userRole !== 'admin') {
+            // Only admins are allowed to execute user management commands
+            return ctx.reply('❌ You are not authorized to perform this action.');
         }
-        if (member) {
-            const { id, username, discriminator } = user;
-            const date = Date.now();
 
-            const db = new sqlite3.Database('./db/data.db');
-
-            try {
-                switch (cmd) {
-                    case 'add':
-                        if (await userExists(db, id)) {
-                            return ctx.reply(`@${username} is already in the database.`);
-                        }
-
-                        const addRole = ctx.message.guild.roles.cache.find(r => r.name === config.botuser_rolename);
-                        await member.roles.add(addRole);
-
-                        await addUserToDB(db, id, username, discriminator, date, 1);
-                        return ctx.reply(`@${username} has been added to the database.`);
-
-                    case 'delete':
-                        if (!(await userExists(db, id))) {
-                            return ctx.reply(`@${username} is not in the database.`);
-                        }
-
-                        const deleteRole = ctx.message.guild.roles.cache.find(r => r.name === config.botuser_rolename);
-                        await member.roles.remove(deleteRole);
-
-                        const deleteAdminRole = ctx.message.guild.roles.cache.find(r => r.name === config.admin_rolename);
-                        await member.roles.remove(deleteAdminRole);
-
-                        await deleteUserFromDB(db, id);
-                        return ctx.reply(`@${username} has been deleted from the database.`);
-
-                    case 'info':
-                        const userRow = await getUserRow(db, id);
-                        if (userRow) {
-                            const rank = userRow.permissions === 0 ? 'admin' : 'a normal user';
-                            return ctx.reply(`Information about ${username}: ${username} is ${rank}. They can use the bot.`);
-                        } else {
-                            return ctx.reply(`@${username} is not in the database.`);
-                        }
-
-                    case 'setadmin':
-                        const setAdminRow = await getUserRow(db, id);
-                        const userRole = ctx.message.guild.roles.cache.find(r => r.name === config.botuser_rolename);
-                        await member.roles.remove(userRole);
-
-                        const adminRole = ctx.message.guild.roles.cache.find(r => r.name === config.admin_rolename);
-                        await member.roles.add(adminRole);
-
-                        if (setAdminRow) {
-                            if (setAdminRow.permissions === 0) {
-                                return ctx.reply(`@${username} is already an admin.`);
-                            } else {
-                                await updateUserRankToAdmin(db, id);
-                                return ctx.reply(`@${username} is now an admin.`);
-                            }
-                        } else {
-                            await addUserToDB(db, id, username, discriminator, date, 0);
-                            return ctx.reply(`@${username} has been added to the database as an admin.`);
-                        }
-
-                    default:
-                        return ctx.reply('Invalid command. Example: /user add @example');
+        // Handle the different subcommands
+        if (command === 'add') {
+            // Add a new user to the database
+            db.run(
+                'INSERT INTO users (telegram_id, username) VALUES (?, ?)',
+                [targetId, ctx.from.username],
+                (err) => {
+                    if (err) return ctx.reply('⚠️ User already exists or database error.');
+                    ctx.reply(`✅ User ${targetId} added successfully.`);
                 }
-            } catch (error) {
-                console.error(error);
-                return ctx.reply('An error occurred while processing your request.');
-            } finally {
-                db.close();
-            }
+            );
+        } else if (command === 'remove') {
+            // Remove a user from the database
+            db.run('DELETE FROM users WHERE telegram_id = ?', [targetId], (err) => {
+                if (err) return ctx.reply('⚠️ Error removing user.');
+                ctx.reply(`✅ User ${targetId} removed.`);
+            });
+        } else if (command === 'setadmin') {
+            // Grant admin privileges to a user
+            db.run('UPDATE users SET role = "admin" WHERE telegram_id = ?', [targetId], (err) => {
+                if (err) return ctx.reply('⚠️ Error updating role.');
+                ctx.reply(`🔑 User ${targetId} is now an Admin.`);
+            });
+        } else if (command === 'setmod') {
+            // Grant moderator privileges to a user
+            db.run('UPDATE users SET role = "moderator" WHERE telegram_id = ?', [targetId], (err) => {
+                if (err) return ctx.reply('⚠️ Error updating role.');
+                ctx.reply(`🛠️ User ${targetId} is now a Moderator.`);
+            });
+        } else if (command === 'list') {
+            // List all registered users
+            db.all('SELECT * FROM users', [], (err, rows) => {
+                if (err) return ctx.reply('⚠️ Error fetching users.');
+                const usersList = rows.map((u) => `${u.username} (${u.telegram_id}) - ${u.role}`).join('\n');
+                ctx.reply(`📋 Registered Users:\n${usersList || 'No users found.'}`);
+            });
         } else {
-            return ctx.reply(`User ${mention} is not on your server or wasn't found.`);
+            // Handle invalid subcommands
+            ctx.reply('❓ Invalid subcommand.');
         }
-    } else {
-        return ctx.reply('Invalid command. Example: /user add @example');
+    } catch (error) {
+        console.error('❌ Error in /user command:', error.message);
+        ctx.reply('⚠️ Failed to process the request. Please try again later.');
     }
 });
 
-async function userExists(db, userid) {
-    return new Promise((resolve, reject) => {
-        db.get('SELECT userid FROM users WHERE userid = ?', [userid], (err, row) => {
-            if (err) reject(err);
-            else resolve(row !== undefined);
-        });
-    });
-}
-
-async function getUserRow(db, userid) {
-    return new Promise((resolve, reject) => {
-        db.get('SELECT * FROM users WHERE userid = ?', [userid], (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-        });
-    });
-}
-
-async function addUserToDB(db, userid, username, discriminator, date, permissions) {
-    return new Promise((resolve, reject) => {
-        db.run('INSERT INTO users(userid, username, discriminator, date, permissions) VALUES(?, ?, ?, ?, ?)',
-            [userid, username, discriminator, date, permissions],
-            (err) => {
-                if (err) reject(err);
-                else resolve();
-            }
-        );
-    });
-}
-
-async function deleteUserFromDB(db, userid) {
-    return new Promise((resolve, reject) => {
-        db.run('DELETE FROM users WHERE userid = ?', [userid], (err) => {
-            if (err) reject(err);
-            else resolve();
-        });
-    });
-}
-
-async function updateUserRankToAdmin(db, userid) {
-    return new Promise((resolve, reject) => {
-        db.run('UPDATE users SET permissions = ? WHERE userid = ?', [0, userid], (err) => {
-            if (err) reject(err);
-            else resolve();
-        });
-    });
-}
-// Add the following try-catch block within your middleware
-try {
-    // Your existing middleware logic here
-
-} catch (err) {
-    console.error(`Error in userMiddleware: ${err.message}`);
-}
-module.exports = userMiddleware;
+module.exports = userCommand;

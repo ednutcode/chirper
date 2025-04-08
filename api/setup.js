@@ -1,18 +1,18 @@
 module.exports = function(request, response) {
     /**
-     * Intégration des dépendences SQLITE3
+     * Integration of SQLITE3 dependencies
      */
     const sqlite3 = require('sqlite3').verbose();
     const db = new sqlite3.Database('./db/data.db');
 
     /**
-     * Dépendance permettant la modification du fichier config et la génération du mot de passe de l'api
+     * Dependency allowing modification of the config file and generation of the API password
      */
     const fs = require('fs');
     const generator = require('generate-password');
 
     /**
-     * Création de la DB ainsi que les tables contenues dedans
+     * Creation of the database and the tables contained within it
      */
     db.serialize(function() {
         db.run('CREATE TABLE IF NOT EXISTS calls (itsfrom TEXT, itsto TEXT, digits TEXT, callSid TEXT, status TEXT, date TEXT, user TEXT, name TEXT, service TEXT)');
@@ -30,7 +30,7 @@ module.exports = function(request, response) {
 
         fs.writeFile('config.js', newapipassword, 'utf-8', function(err, data) {
             if (err) throw err;
-            console.log('Setup the new api password : done.');
+            console.log('Setup the new API password: done.');
 
             fs.readFile('config.js', 'utf-8', function(err, data) {
                 if (err) throw err;
@@ -39,7 +39,7 @@ module.exports = function(request, response) {
 
                 fs.writeFile('config.js', setupdone, 'utf-8', function(err, data) {
                     if (err) throw err;
-                    console.log('Automatic setup : done.');
+                    console.log('Automatic setup: done.');
                 });
             });
         });

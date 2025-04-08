@@ -1,0 +1,7 @@
+✅ Database initialized successfully.
+✅ Connected to the SQLite database at /workspaces/codespaces-blank/chirper/telegram/db/data.db
+✅ Users table is ready.
+✅ Token successfully generated and stored.
+🔑 Admin token generated: bb96a30cfc2bc4049366fa62646dbed844d2478366c05e2c7699ced261675066
+🤖 Telegram Bot is running!
+✅ Tokens table is ready.

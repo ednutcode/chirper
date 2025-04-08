@@ -1,49 +1,50 @@
+require('dotenv').config(); // Load environment variables from .env file
+
 module.exports = {
-    setupdone: 'true',
+    setupdone: process.env.SETUP_DONE || 'true',
 
     /**
-     * Informations à propos du compte Twilio
+     * Information about the Twilio account
      */
-    accountSid: 'ACd17f9bf51ee0df5c61a318325275901b',
-    authToken: '335fa07178d8c22d965b31aaec235cd1',
-    callerid: '+18065457860',
+    accountSid: process.env.TWILIO_ACCOUNT_SID,
+    authToken: process.env.TWILIO_AUTH_TOKEN,
+    callerid: process.env.TWILIO_CALLER_ID,
 
     /**
-     * Informations à propos de l'API
+     * Information about the API
      */
-    apipassword: 'Hanaffypab087$&!lo',
-    serverurl: 'https://rooster-equal-privately.ngrok-free.app',
+    apipassword: process.env.API_PASSWORD,
+    serverurl: process.env.SERVER_URL,
 
     /**
-     * Informations à propos du webhook discord
+     * Information about the Telegram bot
      */
-    telegramChatId: '7357374379',
-    telegramBotToken: '7752462830:AAEMJ8FGgikb4Il6cXJO-tsp-LAxghfpZUI',
-  //  discordwebhook: 'https://discord.com/api/webhooks/1161351246536519831/AsK0orHR3trAafdS-53H_WtzHLPmCjEsRFs5P_KV518CGhc4imMAGwO77bOIltvY_1mt',
+    telegramChatId: process.env.TELEGRAM_CHAT_ID,
+    telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
 
     /**
-     * Port sur lequel tourne le serveur express
+     * Port on which the Express server runs
      */
     port: process.env.PORT || 1337,
 
     /**
-     * Chemins de stockage des fichiers audios
+     * Storage paths for audio files
      */
-    amazonfilepath: './voice/fr/amazon/ask-amazon.mp3',
-    cdiscountfilepath: './voice/fr/cdiscount/ask-cdiscount.mp3',
-    twitterfilepath: './voice/fr/twitter/ask-twitter.mp3',
-    whatsappfilepath: './voice/fr/whatsapp/ask-whatsapp.mp3',
-    paypalfilepath: './voice/fr/paypal/ask-pp.mp3',
-    googlefilepath: './voice/fr/google/ask-google.mp3',
-    snapchatfilepath: './voice/fr/snapchat/ask-snapchat.mp3',
-    instagramfilepath: './voice/fr/instagram/ask-instagram.mp3',
-    facebookfilepath: './voice/fr/facebook/ask-facebook.mp3',
-    endfilepath: './voice/fr/done/call-done.mp3',
-    defaultfilepath: './voice/fr/default/ask-default.mp3',
-    banquefilepath: './voice/fr/banque/ask-banque.mp3',
+    amazonfilepath: process.env.AMAZON_FILE_PATH || './voice/fr/amazon/ask-amazon.mp3',
+    cdiscountfilepath: process.env.CDISCOUNT_FILE_PATH || './voice/fr/cdiscount/ask-cdiscount.mp3',
+    twitterfilepath: process.env.TWITTER_FILE_PATH || './voice/fr/twitter/ask-twitter.mp3',
+    whatsappfilepath: process.env.WHATSAPP_FILE_PATH || './voice/fr/whatsapp/ask-whatsapp.mp3',
+    paypalfilepath: process.env.PAYPAL_FILE_PATH || './voice/fr/paypal/ask-pp.mp3',
+    googlefilepath: process.env.GOOGLE_FILE_PATH || './voice/fr/google/ask-google.mp3',
+    snapchatfilepath: process.env.SNAPCHAT_FILE_PATH || './voice/fr/snapchat/ask-snapchat.mp3',
+    instagramfilepath: process.env.INSTAGRAM_FILE_PATH || './voice/fr/instagram/ask-instagram.mp3',
+    facebookfilepath: process.env.FACEBOOK_FILE_PATH || './voice/fr/facebook/ask-facebook.mp3',
+    endfilepath: process.env.END_FILE_PATH || './voice/fr/done/call-done.mp3',
+    defaultfilepath: process.env.DEFAULT_FILE_PATH || './voice/fr/default/ask-default.mp3',
+    banquefilepath: process.env.BANQUE_FILE_PATH || './voice/fr/banque/ask-banque.mp3',
 
     /**
-     * Contenu des sms selon les services demandés
+     * SMS content based on requested services
      */
-    paypalsms: 'pp test 123'
+    paypalsms: process.env.PAYPAL_SMS || 'pp test 123'
 };

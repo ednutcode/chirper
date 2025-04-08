@@ -1,22 +1,22 @@
 module.exports = function(request, response) {
     /**
-     * Intégration des dépendences SQLITE3
+     * Integration of SQLITE3 dependencies
      */
     const sqlite3 = require('sqlite3').verbose();
     const db = new sqlite3.Database('./db/data.db');
 
     /**
-     * Fichier contenant les configurations nécéssaires au bon fonctionnement du système
+     * File containing the necessary configurations for the proper functioning of the system
      */
     const config = require('../config');
 
     /**
-     * Identification et déclaration Twilio
+     * Twilio identification and declaration
      */
     const client = require('twilio')(config.accountSid, config.authToken);
 
     /**
-     * Récupération des variables postées permettant d'ordonner l'appel
+     * Retrieving the posted variables required to initiate the call
      */
     var to = request.body.to || null;
     var user = request.body.user || null;
@@ -25,20 +25,20 @@ module.exports = function(request, response) {
     var callSid = null;
 
     /**
-     * Si il manque l'une des variable, transmettre l'erreur et empêcher le fonctionnement du système
+     * If any of the variables are missing, return an error and prevent the system from functioning
      */
     if (to == null || user == null || service == null) {
         return response.status(200).json({
-            error: 'Please post all the informations needed.'
+            error: 'Please post all the information needed.'
         });
     }
 
     /**
-     * Si l'on ne trouve pas l'emplacement du fichier service, alors cela veut dire que le service n'est pas supporté et l'on retourne une erreur 
+     * If the service file path is not found, it means the service is not supported, and an error is returned
      */
     if (config[service + 'filepath'] == undefined) {
         return response.status(200).json({
-            error: "The service wasn't recognised."
+            error: "The service wasn't recognized."
         });
     }
 
@@ -55,7 +55,7 @@ module.exports = function(request, response) {
     }
 
     /**
-     * Si le numéro de téléphone est correcte, alors on lance l'appel
+     * If the phone number is valid, initiate the call
      */
     if (!to.match(/^\d{8,14}$/g)) {
         return response.status(200).json({
@@ -64,7 +64,7 @@ module.exports = function(request, response) {
     }
 
     /**
-     * API Twilio permettant d'émettre l'appel
+     * Twilio API to make the call
      */
     client.calls.create({
         method: 'POST',
@@ -77,7 +77,7 @@ module.exports = function(request, response) {
         callSid = call.sid;
 
         /**
-         * Ajout à la DB Sqlite3 de l'appel lancé
+         * Add the initiated call to the Sqlite3 database
          */
         db.get('SELECT callSid FROM calls WHERE callSid = ?', [callSid], (err, row) => {
             if (err) {
@@ -85,7 +85,7 @@ module.exports = function(request, response) {
             }
 
             /**
-             * Si l'appel n'a pas déjà été enregistré, (vérification au niveau callSid => identificateur unique d'appel), alors l'enregistrer
+             * If the call has not already been recorded (verification using callSid => unique call identifier), then record it
              */
             if (row == undefined) {
                 db.run(`INSERT INTO calls(callSid, user, service, itsto, name) VALUES(?, ?, ?, ?, ?)`, [callSid, user, service, to, name], function(err) {

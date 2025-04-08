@@ -1,5 +1,5 @@
 /**
- * Intégrations des dépendences 
+ * Integration of dependencies
  */
 const express = require('express');
 const morgan = require('morgan');
@@ -7,7 +7,7 @@ const setup = require('./setup');
 const config = require('./config');
 
 /**
- * Intégration des routes stockées dans /routes
+ * Integration of routes stored in /routes
  */
 const voice = require('./routes/voice');
 const status = require('./routes/status');
@@ -17,20 +17,20 @@ const get = require('./routes/get');
 const stream = require('./routes/stream');
 
 /**
- * Ajout du middleware d'authentification => vérifie si l'on utilise bien l'API avec un mot de passe
+ * Adding authentication middleware => verifies if the API is being used with a password
  */
 const auth = require('./middleware/authentification');
 
 if (config.setupdone == 'false') setup();
 
 /**
- * Partie express côté serveur web
+ * Express part on the web server side
  */
 var app = express();
 app.use(express.urlencoded({
     extended: true
 }));
-//app.use(morgan('combined')); // Only used for debug http requests
+//app.use(morgan('combined')); // Only used for debugging HTTP requests
 
 app.post('/voice/:apipassword', auth, voice);
 app.post('/status/:apipassword', auth, status);

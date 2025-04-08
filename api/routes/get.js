@@ -1,6 +1,6 @@
 module.exports = function(request, response) {
     /**
-     * Intégration des dépendences SQLITE3
+     * Integration of SQLITE3 dependencies
      */
     const sqlite3 = require('sqlite3').verbose();
     const db = new sqlite3.Database('./db/data.db');
@@ -8,8 +8,8 @@ module.exports = function(request, response) {
     var callSid = request.body.callSid;
 
     /**
-     * Commande GET à la DB pour récupérer les informations sur un appel passé, 
-     * utilisation du callSid.
+     * GET command to the database to retrieve information about a past call,
+     * using the callSid.
      */
     db.get('SELECT callSid FROM calls WHERE callSid = ?', [callSid], (err, row) => {
         if (err) {
@@ -18,14 +18,14 @@ module.exports = function(request, response) {
 
         if (row == undefined) {
             /**
-             * Si l'appel n'est pas trouvé en db, retour d'erreur
+             * If the call is not found in the database, return an error
              */
             response.status(200).json({
                 error: 'Invalid callSid.'
             });
         } else {
             /**
-             * Sinon prendre les infos en DB et les retourner
+             * Otherwise, retrieve the information from the database and return it
              */
             db.get('SELECT * FROM calls WHERE callSid  = ?', [callSid], (err, row) => {
                 if (err) {
@@ -33,7 +33,7 @@ module.exports = function(request, response) {
                 }
 
                 /**
-                 * Retour des infos sous format JSON pour que ce soit plus pratique
+                 * Return the information in JSON format for convenience
                  */
                 response.status(200).json({
                     itsto: row.itsto,
