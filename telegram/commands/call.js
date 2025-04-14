@@ -1,68 +1,96 @@
+// commands/call.js
 const { Composer } = require('grammy');
 const axios = require('axios');
 const qs = require('qs');
 const config = require('../config');
-const { hasPermission } = require('../utils/utils');
+const onlyAdmin = require('../middleware/onlyAdmin');
 
-module.exports = (db) => {
-    const callCommand = new Composer();
-    const userSessions = new Map();
+const callCommand = new Composer();
+const userSessions = new Map(); // To track interactive sessions
 
-    callCommand.command('call', async (ctx) => {
-        const userId = ctx.from.id;
-        if (!await hasPermission(db, userId, 'admin')) {
-            return ctx.reply('🚫 You are not authorized to use this command.');
-        }
+callCommand.use(onlyAdmin);
 
-        userSessions.set(userId, { step: 'phone' });
-        await ctx.reply('📞 Provide the phone number to call (e.g., 33612345678):');
-    });
+callCommand.command('call', async (ctx) => {
+  const userId = ctx.from.id;
 
-    callCommand.on('message', async (ctx) => {
-        const userId = ctx.from.id;
-        if (!userSessions.has(userId)) return;
+  console.log(`📞 /call command received from user ID: ${userId}`);
 
-        const session = userSessions.get(userId);
-        const text = ctx.message.text.trim();
+  // Start a new session for the user
+  userSessions.set(userId, { step: 'phone' });
+  return ctx.reply('📞 Please provide the phone number to call (e.g., 33612345678):');
+});
 
-        if (session.step === 'phone') {
-            if (!text.match(/^\d{8,14}$/)) return ctx.reply('❌ Invalid phone number.');
-            session.phone = text;
-            session.step = 'service';
-            return ctx.reply('🏦 Provide the service name (e.g., PayPal):');
-        }
+callCommand.on('message', async (ctx) => {
+  const userId = ctx.from.id;
+  if (!userSessions.has(userId)) {
+    console.log(`⚠️ No active session for user ID: ${userId}`);
+    return;
+  }
 
-        if (session.step === 'service') {
-            if (!text.match(/^[a-zA-Z]+$/)) return ctx.reply('❌ Invalid service name.');
-            session.service = text.toLowerCase();
-            session.step = 'name';
-            return ctx.reply('📇 Provide client name or type "none":');
-        }
+  const session = userSessions.get(userId);
+  const text = ctx.message.text.trim();
 
-        if (session.step === 'name') {
-            session.name = text.toLowerCase() === 'none' ? null : text.toLowerCase();
+  console.log(`📩 Received input from user ID: ${userId}, Step: ${session.step}, Input: ${text}`);
 
-            try {
-                await axios.post(`${config.apiUrl}/call/`, qs.stringify({
-                    password: config.apiPassword,
-                    to: session.phone,
-                    user: ctx.from.username,
-                    service: session.service,
-                    name: session.name,
-                }));
+  switch (session.step) {
+    case 'phone':
+      if (!text.match(/^\d{8,14}$/)) {
+        return ctx.reply('❌ Invalid phone number. Please enter a valid phone number (e.g., 33612345678):');
+      }
+      session.phone = text;
+      session.step = 'service';
+      console.log(`✅ Phone number saved: ${session.phone}`);
+      return ctx.reply('🏦 Please enter the service name (e.g., PayPal):');
 
-                await ctx.reply(
-                    `✅ Call Request Sent!\n\n📲 Phone: ${session.phone}\n🏦 Service: ${session.service}\n📇 Name: ${session.name || 'N/A'}`,
-                    { parse_mode: 'Markdown' }
-                );
-            } catch (err) {
-                console.error('❌ Call failed:', err.message);
-                await ctx.reply('⚠️ Call failed. Please try again.');
-            }
+    case 'service':
+      if (!text.match(/^[a-zA-Z]+$/)) {
+        return ctx.reply('❌ Invalid service name. Please enter a valid service name (e.g., PayPal):');
+      }
+      session.service = text;
+      session.step = 'name';
+      console.log(`✅ Service name saved: ${session.service}`);
+      return ctx.reply('📇 Please enter the client name (or type "none" if not applicable):');
 
-            userSessions.delete(userId);
-        }
-    });
+    case 'name':
+      session.name = text.toLowerCase() === 'none' ? null : text;
+      console.log(`✅ Client name saved: ${session.name || 'N/A'}`);
 
-    return callCommand;
-};
+      try {
+        // Make the API call
+        console.log('🌐 Making API call with the following data:', {
+          password: config.apiPassword,
+          to: session.phone,
+          user: ctx.from.username || 'unknown',
+          service: session.service,
+          name: session.name,
+        });
+
+        const response = await axios.post(`${config.apiUrl}/call/`, qs.stringify({
+          password: config.apiPassword,
+          to: session.phone,
+          user: ctx.from.username || 'unknown',
+          service: session.service,
+          name: session.name,
+        }));
+
+        console.log('✅ API Response:', response.data);
+
+        await ctx.reply(
+          `✅ Call request sent successfully:\n\n📲 Phone: ${session.phone}\n🏦 Service: ${session.service}\n📇 Name: ${session.name || 'N/A'}`
+        );
+      } catch (error) {
+        console.error('❌ Error making call request:', error.message);
+        await ctx.reply('⚠️ Failed to send call request. Please try again.');
+      }
+
+      userSessions.delete(userId); // End the session
+      break;
+
+    default:
+      console.log(`⚠️ Invalid session step for user ID: ${userId}`);
+      userSessions.delete(userId);
+      return ctx.reply('⚠️ Something went wrong. Please start over.');
+  }
+});
+
+module.exports = callCommand;

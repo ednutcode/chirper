@@ -1,84 +1,121 @@
+// commands/user.js
 const { Composer } = require('grammy');
-const {
-    isCreator,
-    hasPermission,
-    getUserIdFromMention,
-    getUserRole
-} = require('../utils/utils');
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('../db/data.db');
-
-const dotenv = require('dotenv');
-dotenv.config();
+const { upsertUser, deleteUser, getUser, getUserByUsername } = require('../utils/utils');
 
 const userCommand = new Composer();
+const userSessions = new Map(); // To track interactive sessions
 
-module.exports = (db) => {
-    userCommand.command('user', async (ctx) => {
-        const args = ctx.message.text.split(' ').slice(1);
-        const subcommand = args[0];
-        const mention = args[1];
+// Handle /user command
+userCommand.command('user', async (ctx) => {
+  const userId = ctx.from.id;
 
-        if (!subcommand || !mention) {
-            return ctx.reply('❌ Usage: /user <add|delete|info|setadmin> @username');
+  // Start a new session for the user
+  userSessions.set(userId, { step: 'command' });
+  return ctx.reply(
+    'What would you like to do?\nOptions:\n1. Add User\n2. Set Admin\n3. Delete User\n4. Get User Info\n\nReply with the number of your choice:'
+  );
+});
+
+// Handle interactive sessions
+userCommand.on('message', async (ctx) => {
+  const userId = ctx.from.id;
+  if (!userSessions.has(userId)) return;
+
+  const session = userSessions.get(userId);
+  const text = ctx.message.text.trim();
+
+  switch (session.step) {
+    case 'command':
+      if (text === '1') {
+        session.action = 'add';
+        session.step = 'username';
+        return ctx.reply('Please enter the username to add (e.g., @username):');
+      } else if (text === '2') {
+        session.action = 'setadmin';
+        session.step = 'username';
+        return ctx.reply('Please enter the username to promote to admin (e.g., @username):');
+      } else if (text === '3') {
+        session.action = 'delete';
+        session.step = 'username';
+        return ctx.reply('Please enter the username to delete (e.g., @username):');
+      } else if (text === '4') {
+        session.action = 'info';
+        session.step = 'username';
+        return ctx.reply('Please enter the username to fetch info (e.g., @username), or type "me" to fetch your own info:');
+      } else {
+        return ctx.reply('Invalid choice. Please reply with a number between 1 and 4.');
+      }
+
+    case 'username':
+      if (session.action === 'info' && text.toLowerCase() === 'me') {
+        // Fetch the user's own information
+        const userInfo = await getUser(userId);
+        if (!userInfo) {
+          userSessions.delete(userId);
+          return ctx.reply(`⚠️ Your information was not found in the database.`);
         }
+        userSessions.delete(userId);
+        return ctx.reply(`ℹ️ Info for you:\nRole: ${userInfo.role}\nTelegram ID: ${userInfo.telegram_id}`);
+      }
 
-        if (!await hasPermission(db, ctx.from.id, 'admin')) {
-            return ctx.reply('🚫 You are not authorized to manage users.');
+      if (!text.startsWith('@')) {
+        return ctx.reply('❌ Invalid username. Please enter a valid username starting with @ (e.g., @username):');
+      }
+      session.username = text.replace('@', '');
+
+      if (session.action === 'add') {
+        session.step = 'telegram_id';
+        return ctx.reply('Please enter the Telegram ID of the user:');
+      } else if (session.action === 'setadmin') {
+        const userToPromote = await getUserByUsername(session.username);
+        if (!userToPromote) {
+          userSessions.delete(userId);
+          return ctx.reply(`⚠️ User @${session.username} not found.`);
         }
-
-        const username = getUserIdFromMention(mention);
-        if (!username) return ctx.reply('❌ Invalid username. Use @username');
-
-        ctx.getChatMember(mention).then(async (member) => {
-            const targetId = member.user.id;
-
-            switch (subcommand) {
-                case 'add':
-                    db.run(`INSERT OR IGNORE INTO users (id, username) VALUES (?, ?)`, [targetId, username], (err) => {
-                        if (err) return ctx.reply('❌ DB Error: ' + err.message);
-                        ctx.reply(`✅ User @${username} added.`);
-                    });
-                    break;
-
-                case 'setadmin':
-                    db.run(`UPDATE users SET role = 'admin' WHERE id = ?`, [targetId], (err) => {
-                        if (err) return ctx.reply('❌ DB Error');
-                        ctx.reply(`✅ @${username} promoted to admin.`);
-                    });
-                    break;
-
-                case 'delete':
-                    db.run(`DELETE FROM users WHERE id = ?`, [targetId], (err) => {
-                        if (err) return ctx.reply('❌ DB Error');
-                        ctx.reply(`🗑️ @${username} deleted.`);
-                    });
-                    break;
-
-                case 'info':
-                    db.get(`SELECT id, username, role FROM users WHERE id = ?`, [targetId], (err, row) => {
-                        if (err || !row) return ctx.reply('❌ User not found.');
-                        ctx.reply(`🧾 <b>User Info</b>\nID: ${row.id}\nUsername: @${row.username}\nRole: ${row.role}`, { parse_mode: 'HTML' });
-                    });
-                    break;
-
-                default:
-                    ctx.reply('❌ Unknown subcommand.');
-            }
-        }).catch(() => ctx.reply('❌ User not found in chat.'));
-    });
-
-    userCommand.command('listadmins', async (ctx) => {
-        if (!await hasPermission(db, ctx.from.id, 'admin')) {
-            return ctx.reply('🚫 You are not authorized.');
+        await upsertUser(userToPromote.telegram_id, session.username, 'admin');
+        userSessions.delete(userId);
+        return ctx.reply(`✅ User @${session.username} promoted to 'admin'.`);
+      } else if (session.action === 'delete') {
+        const userToDelete = await getUserByUsername(session.username);
+        if (!userToDelete) {
+          userSessions.delete(userId);
+          return ctx.reply(`⚠️ User @${session.username} not found.`);
         }
+        await deleteUser(userToDelete.telegram_id);
+        userSessions.delete(userId);
+        return ctx.reply(`✅ User @${session.username} deleted successfully.`);
+      } else if (session.action === 'info') {
+        const userInfo = await getUserByUsername(session.username);
+        if (!userInfo) {
+          userSessions.delete(userId);
+          return ctx.reply(`⚠️ User @${session.username} not found.`);
+        }
+        userSessions.delete(userId);
+        return ctx.reply(`ℹ️ Info for @${session.username}\nRole: ${userInfo.role}\nTelegram ID: ${userInfo.telegram_id}`);
+      }
+      break;
 
-        db.all(`SELECT username, id FROM users WHERE role = 'admin'`, (err, rows) => {
-            if (err || !rows.length) return ctx.reply('📭 No admins found.');
-            const list = rows.map((r, i) => `${i + 1}. ${r.username ? '@' + r.username : r.id}`).join('\n');
-            ctx.reply(`<b>Admins:</b>\n\n${list}`, { parse_mode: 'HTML' });
-        });
-    });
+    case 'telegram_id':
+      if (!text.match(/^\d+$/)) {
+        return ctx.reply('❌ Invalid Telegram ID. Please enter a valid numeric Telegram ID:');
+      }
+      session.telegram_id = parseInt(text, 10);
 
-    return userCommand;
-};
+      // Add the user to the database
+      try {
+        await upsertUser(session.telegram_id, session.username, 'user');
+        userSessions.delete(userId);
+        return ctx.reply(`✅ User @${session.username} added successfully.`);
+      } catch (error) {
+        console.error('❌ Error adding user:', error.message);
+        userSessions.delete(userId);
+        return ctx.reply('⚠️ Failed to add user. Please try again.');
+      }
+
+    default:
+      userSessions.delete(userId);
+      return ctx.reply('⚠️ Something went wrong. Please start over.');
+  }
+});
+
+module.exports = userCommand;

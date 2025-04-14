@@ -1,69 +1,75 @@
-const config = require('../config');
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('../db/data.db');
+const { getDb } = require('../db');
 
-const creatorId = parseInt(config.telegramId);
-
-/**
- * Get role of a user (e.g., "admin", "user")
- */
-function getUserRole(db, userId) {
-    return new Promise((resolve, reject) => {
-        db.get(`SELECT role FROM users WHERE id = ?`, [userId], (err, row) => {
-            if (err || !row) return resolve(null);
-            resolve(row.role);
-        });
-    });
+async function getUserRole(telegramId) {
+  try {
+    const db = getDb();
+    const user = await db.get(
+      `SELECT role FROM users WHERE telegram_id = ?`,
+      [telegramId]
+    );
+    return user ? user.role : null;
+  } catch (error) {
+    console.error('Error fetching user role:', error.message);
+    throw error;
+  }
 }
 
-/**
- * Check if user is admin
- */
-function isAdmin(db, userId) {
-    return new Promise((resolve, reject) => {
-        db.get(`SELECT role FROM users WHERE id = ?`, [userId], (err, row) => {
-            if (err) return reject(err);
-            resolve(row?.role === 'admin');
-        });
-    });
+async function getUser(telegramId) {
+  try {
+    const db = getDb();
+    const user = await db.get(
+      `SELECT * FROM users WHERE telegram_id = ?`,
+      [telegramId]
+    );
+    return user || null;
+  } catch (error) {
+    console.error('Error fetching user:', error.message);
+    throw error;
+  }
 }
 
-/**
- * Check if user is the bot creator
- */
-function isCreator(userId) {
-    return userId === creatorId;
+async function getUserByUsername(username) {
+  try {
+    const db = getDb();
+    const user = await db.get(
+      `SELECT * FROM users WHERE username = ?`,
+      [username]
+    );
+    return user || null;
+  } catch (error) {
+    console.error('Error fetching user by username:', error.message);
+    throw error;
+  }
 }
 
-/**
- * Check if user has the required role or is creator
- * Example: hasPermission(db, ctx.from.id, 'admin')
- */
-async function hasPermission(db, userId, requiredRole = 'user') {
-    if (isCreator(userId)) return true;
-
-    const role = await getUserRole(db, userId);
-    if (!role) return false;
-
-    const roles = ['user', 'admin']; // define hierarchy here
-    const userRank = roles.indexOf(role);
-    const requiredRank = roles.indexOf(requiredRole);
-
-    return userRank >= requiredRank;
+async function upsertUser(telegramId, username, role = 'user') {
+  try {
+    const db = getDb();
+    await db.run(
+      `INSERT INTO users (telegram_id, username, role) VALUES (?, ?, ?)
+       ON CONFLICT(telegram_id) DO UPDATE SET username = excluded.username, role = excluded.role`,
+      [telegramId, username, role]
+    );
+  } catch (error) {
+    console.error('Error upserting user:', error.message);
+    throw error;
+  }
 }
 
-/**
- * Extract username from @mention
- */
-function getUserIdFromMention(mention) {
-    const match = mention.match(/^@(\w+)/);
-    return match ? match[1] : null;
+async function deleteUser(telegramId) {
+  try {
+    const db = getDb();
+    await db.run(`DELETE FROM users WHERE telegram_id = ?`, [telegramId]);
+  } catch (error) {
+    console.error('Error deleting user:', error.message);
+    throw error;
+  }
 }
 
 module.exports = {
-    getUserRole,
-    isAdmin,
-    isCreator,
-    hasPermission,
-    getUserIdFromMention,
+  getUserRole,
+  getUser,
+  getUserByUsername,
+  upsertUser,
+  deleteUser,
 };
