@@ -2,7 +2,6 @@ const { Composer } = require('grammy');
 
 const helpCommand = new Composer();
 
-// List of supported call services
 const callServices = [
     'Google',
     'Snapchat',
@@ -16,7 +15,6 @@ const callServices = [
     'Bank: bypass 3D Secure',
 ];
 
-// Generate the help message dynamically
 const generateHelpMessage = () => `
 <b>Help, Commands & Information</b>
 
@@ -37,10 +35,7 @@ ${callServices.map((service, index) => `${index + 1}. ${service}`).join('\n')}
 helpCommand.command('help', async (ctx) => {
     try {
         const helpMessage = generateHelpMessage();
-
-        await ctx.reply(helpMessage, {
-            parse_mode: 'HTML',  // Using Telegram's HTML formatting
-        });
+        await ctx.reply(helpMessage, { parse_mode: 'HTML' });
     } catch (error) {
         console.error('❌ Error sending help message:', error);
         await ctx.reply('An error occurred while fetching the help message. Please try again later.');

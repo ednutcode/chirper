@@ -5,21 +5,9 @@
   "main": "bot.js",
   "scripts": {
     "start": "DEBUG=grammy* node bot.js",
-    "token": "node utils/token.js",
-    "seed": "node db/database.js",
     "test": "jest --detectOpenHandles --forceExit"
   },
-  "jest": {
-    "verbose": true,
-    "testMatch": [
-      "**/tests/**/*.test.js"
-    ],
-    "testEnvironment": "node",
-    "testTimeout": 30000,
-    "setupFilesAfterEnv": [
-      "/workspaces/codespaces-blank/chirper/telegram/tests/setup.js"
-    ]
-  },
+
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -29,8 +17,7 @@
     "grammy": "^1.35.1",
     "qs": "^6.14.0",
     "sqlite3": "^5.1.7"
-  },
-  "devDependencies": {
-    "jest": "^29.7.0"
   }
+
+
 }

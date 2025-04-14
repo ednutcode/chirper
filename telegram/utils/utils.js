@@ -1,54 +1,69 @@
-//const db = require('../db/database'); // Import the database connection
+const config = require('../config');
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./db/data.db');
+const db = new sqlite3.Database('../db/data.db');
+
+const creatorId = parseInt(config.telegramId);
 
 /**
- * Fetch the role of a user from the database.
- * @param {number} telegramId - The Telegram ID of the user.
- * @returns {Promise<string>} - The role of the user (e.g., 'admin', 'moderator', 'user').
+ * Get role of a user (e.g., "admin", "user")
  */
-const getUserRole = (telegramId) => {
+function getUserRole(db, userId) {
     return new Promise((resolve, reject) => {
-        db.get(
-            'SELECT role FROM users WHERE telegram_id = ?',
-            [telegramId],
-            (err, row) => {
-                if (err) {
-                    console.error('❌ Error fetching user role:', err.message);
-                    return reject(err);
-                }
-                if (row) {
-                    resolve(row.role); // Return the user's role
-                } else {
-                    resolve('user'); // Default to 'user' if no role is found
-                }
-            }
-        );
+        db.get(`SELECT role FROM users WHERE id = ?`, [userId], (err, row) => {
+            if (err || !row) return resolve(null);
+            resolve(row.role);
+        });
     });
-};
+}
 
 /**
- * Check if a user exists in the database.
- * @param {number} telegramId - The Telegram ID of the user.
- * @returns {Promise<boolean>} - True if the user exists, false otherwise.
+ * Check if user is admin
  */
-const userExists = (telegramId) => {
+function isAdmin(db, userId) {
     return new Promise((resolve, reject) => {
-        db.get(
-            'SELECT 1 FROM users WHERE telegram_id = ?',
-            [telegramId],
-            (err, row) => {
-                if (err) {
-                    console.error('❌ Error checking user existence:', err.message);
-                    return reject(err);
-                }
-                resolve(!!row); // Return true if a row is found, false otherwise
-            }
-        );
+        db.get(`SELECT role FROM users WHERE id = ?`, [userId], (err, row) => {
+            if (err) return reject(err);
+            resolve(row?.role === 'admin');
+        });
     });
-};
+}
+
+/**
+ * Check if user is the bot creator
+ */
+function isCreator(userId) {
+    return userId === creatorId;
+}
+
+/**
+ * Check if user has the required role or is creator
+ * Example: hasPermission(db, ctx.from.id, 'admin')
+ */
+async function hasPermission(db, userId, requiredRole = 'user') {
+    if (isCreator(userId)) return true;
+
+    const role = await getUserRole(db, userId);
+    if (!role) return false;
+
+    const roles = ['user', 'admin']; // define hierarchy here
+    const userRank = roles.indexOf(role);
+    const requiredRank = roles.indexOf(requiredRole);
+
+    return userRank >= requiredRank;
+}
+
+/**
+ * Extract username from @mention
+ */
+function getUserIdFromMention(mention) {
+    const match = mention.match(/^@(\w+)/);
+    return match ? match[1] : null;
+}
 
 module.exports = {
     getUserRole,
-    userExists,
+    isAdmin,
+    isCreator,
+    hasPermission,
+    getUserIdFromMention,
 };

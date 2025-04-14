@@ -1,81 +1,84 @@
-// commands/user.js
-
 const { Composer } = require('grammy');
-//const db = require('../db/database'); // Import the database connection 
+const {
+    isCreator,
+    hasPermission,
+    getUserIdFromMention,
+    getUserRole
+} = require('../utils/utils');
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./db/data.db');
+const db = new sqlite3.Database('../db/data.db');
 
-const { getUserRole } = require('../utils/utils'); // Utility function to fetch user roles
+const dotenv = require('dotenv');
+dotenv.config();
 
 const userCommand = new Composer();
 
-userCommand.command('user', async (ctx) => {
-    console.log(`📥 Received /user command from: ${ctx.from.id}`);
+module.exports = (db) => {
+    userCommand.command('user', async (ctx) => {
+        const args = ctx.message.text.split(' ').slice(1);
+        const subcommand = args[0];
+        const mention = args[1];
 
-    // Parse the command arguments
-    const args = ctx.message.text.split(' ').slice(1);
-    const command = args[0]; // Subcommand (e.g., add, remove, setadmin, etc.)
-    const targetId = args[1]; // Target user ID or username
-
-    if (!command) {
-        // If no subcommand is provided, show usage instructions
-        return ctx.reply('❓ Usage: /user add|remove|setadmin|setmod|list');
-    }
-
-    try {
-        // Fetch the role of the user issuing the command
-        const userRole = await getUserRole(ctx.from.id);
-        console.log(`🔍 ${ctx.from.id} role: ${userRole}`);
-
-        if (userRole !== 'admin') {
-            // Only admins are allowed to execute user management commands
-            return ctx.reply('❌ You are not authorized to perform this action.');
+        if (!subcommand || !mention) {
+            return ctx.reply('❌ Usage: /user <add|delete|info|setadmin> @username');
         }
 
-        // Handle the different subcommands
-        if (command === 'add') {
-            // Add a new user to the database
-            db.run(
-                'INSERT INTO users (telegram_id, username) VALUES (?, ?)',
-                [targetId, ctx.from.username],
-                (err) => {
-                    if (err) return ctx.reply('⚠️ User already exists or database error.');
-                    ctx.reply(`✅ User ${targetId} added successfully.`);
-                }
-            );
-        } else if (command === 'remove') {
-            // Remove a user from the database
-            db.run('DELETE FROM users WHERE telegram_id = ?', [targetId], (err) => {
-                if (err) return ctx.reply('⚠️ Error removing user.');
-                ctx.reply(`✅ User ${targetId} removed.`);
-            });
-        } else if (command === 'setadmin') {
-            // Grant admin privileges to a user
-            db.run('UPDATE users SET role = "admin" WHERE telegram_id = ?', [targetId], (err) => {
-                if (err) return ctx.reply('⚠️ Error updating role.');
-                ctx.reply(`🔑 User ${targetId} is now an Admin.`);
-            });
-        } else if (command === 'setmod') {
-            // Grant moderator privileges to a user
-            db.run('UPDATE users SET role = "moderator" WHERE telegram_id = ?', [targetId], (err) => {
-                if (err) return ctx.reply('⚠️ Error updating role.');
-                ctx.reply(`🛠️ User ${targetId} is now a Moderator.`);
-            });
-        } else if (command === 'list') {
-            // List all registered users
-            db.all('SELECT * FROM users', [], (err, rows) => {
-                if (err) return ctx.reply('⚠️ Error fetching users.');
-                const usersList = rows.map((u) => `${u.username} (${u.telegram_id}) - ${u.role}`).join('\n');
-                ctx.reply(`📋 Registered Users:\n${usersList || 'No users found.'}`);
-            });
-        } else {
-            // Handle invalid subcommands
-            ctx.reply('❓ Invalid subcommand.');
+        if (!await hasPermission(db, ctx.from.id, 'admin')) {
+            return ctx.reply('🚫 You are not authorized to manage users.');
         }
-    } catch (error) {
-        console.error('❌ Error in /user command:', error.message);
-        ctx.reply('⚠️ Failed to process the request. Please try again later.');
-    }
-});
 
-module.exports = userCommand;
+        const username = getUserIdFromMention(mention);
+        if (!username) return ctx.reply('❌ Invalid username. Use @username');
+
+        ctx.getChatMember(mention).then(async (member) => {
+            const targetId = member.user.id;
+
+            switch (subcommand) {
+                case 'add':
+                    db.run(`INSERT OR IGNORE INTO users (id, username) VALUES (?, ?)`, [targetId, username], (err) => {
+                        if (err) return ctx.reply('❌ DB Error: ' + err.message);
+                        ctx.reply(`✅ User @${username} added.`);
+                    });
+                    break;
+
+                case 'setadmin':
+                    db.run(`UPDATE users SET role = 'admin' WHERE id = ?`, [targetId], (err) => {
+                        if (err) return ctx.reply('❌ DB Error');
+                        ctx.reply(`✅ @${username} promoted to admin.`);
+                    });
+                    break;
+
+                case 'delete':
+                    db.run(`DELETE FROM users WHERE id = ?`, [targetId], (err) => {
+                        if (err) return ctx.reply('❌ DB Error');
+                        ctx.reply(`🗑️ @${username} deleted.`);
+                    });
+                    break;
+
+                case 'info':
+                    db.get(`SELECT id, username, role FROM users WHERE id = ?`, [targetId], (err, row) => {
+                        if (err || !row) return ctx.reply('❌ User not found.');
+                        ctx.reply(`🧾 <b>User Info</b>\nID: ${row.id}\nUsername: @${row.username}\nRole: ${row.role}`, { parse_mode: 'HTML' });
+                    });
+                    break;
+
+                default:
+                    ctx.reply('❌ Unknown subcommand.');
+            }
+        }).catch(() => ctx.reply('❌ User not found in chat.'));
+    });
+
+    userCommand.command('listadmins', async (ctx) => {
+        if (!await hasPermission(db, ctx.from.id, 'admin')) {
+            return ctx.reply('🚫 You are not authorized.');
+        }
+
+        db.all(`SELECT username, id FROM users WHERE role = 'admin'`, (err, rows) => {
+            if (err || !rows.length) return ctx.reply('📭 No admins found.');
+            const list = rows.map((r, i) => `${i + 1}. ${r.username ? '@' + r.username : r.id}`).join('\n');
+            ctx.reply(`<b>Admins:</b>\n\n${list}`, { parse_mode: 'HTML' });
+        });
+    });
+
+    return userCommand;
+};
