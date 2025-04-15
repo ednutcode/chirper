@@ -1,11 +1,7 @@
-# Ignore environment files
-.env
-**/example.env
 
 # Ignore node dependencies
-telegram/node_modules/
-api/node_modules/
-
+telegram/node_modules
+api/node_modules
 telegram/package-lock.json
 api/package-lock.json
 
