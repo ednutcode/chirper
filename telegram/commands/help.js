@@ -23,15 +23,18 @@ const generateHelpMessage = () => `
 /user delete @user - Remove someone or an admin from the bot
 /user info @user - Get info from a user
 /user setadmin @user - Set a user to admin
+/cancelcall - Cancel the call
+/canceluser - Cancel the user command
+/user me - Get your own info
 
 <b>All the User Commands:</b>
-/secret yoursecretpassword @user - Set a user to admin without being admin
 /call phonenumber service (e.g., /call 33612345678 paypal) - Allows you to make a call to the phone number and get the code
 
 <b>The Different Call Services Supported:</b>
 ${callServices.map((service, index) => `${index + 1}. ${service}`).join('\n')}
 `;
 
+// Handle the /help command
 helpCommand.command('help', async (ctx) => {
     try {
         const helpMessage = generateHelpMessage();
@@ -42,4 +45,5 @@ helpCommand.command('help', async (ctx) => {
     }
 });
 
-module.exports = helpCommand;
+module.exports = helpCommand; // Export the generateHelpMessage function
+

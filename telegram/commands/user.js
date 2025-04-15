@@ -3,25 +3,26 @@ const { Composer } = require('grammy');
 const { upsertUser, deleteUser, getUser, getUserByUsername } = require('../utils/utils');
 
 const userCommand = new Composer();
-const userSessions = new Map(); // To track interactive sessions
 
-// Handle /user command
 userCommand.command('user', async (ctx) => {
-  const userId = ctx.from.id;
-
-  // Start a new session for the user
-  userSessions.set(userId, { step: 'command' });
+  ctx.session.userSession = { step: 'command' }; // Initialize session
   return ctx.reply(
     'What would you like to do?\nOptions:\n1. Add User\n2. Set Admin\n3. Delete User\n4. Get User Info\n\nReply with the number of your choice:'
   );
 });
 
-// Handle interactive sessions
-userCommand.on('message', async (ctx) => {
-  const userId = ctx.from.id;
-  if (!userSessions.has(userId)) return;
+userCommand.command('canceluser', async (ctx) => {
+  if (ctx.session.userSession) {
+    ctx.session.userSession = null; // Clear session
+    return ctx.reply('❌ User session canceled.');
+  }
+  return ctx.reply('ℹ️ No active user session found.');
+});
 
-  const session = userSessions.get(userId);
+userCommand.on('message', async (ctx, next) => {
+  const session = ctx.session.userSession;
+  if (!session) return next(); // No active user session, pass to next middleware
+
   const text = ctx.message.text.trim();
 
   switch (session.step) {
@@ -48,14 +49,9 @@ userCommand.on('message', async (ctx) => {
 
     case 'username':
       if (session.action === 'info' && text.toLowerCase() === 'me') {
-        // Fetch the user's own information
-        const userInfo = await getUser(userId);
-        if (!userInfo) {
-          userSessions.delete(userId);
-          return ctx.reply(`⚠️ Your information was not found in the database.`);
-        }
-        userSessions.delete(userId);
-        return ctx.reply(`ℹ️ Info for you:\nRole: ${userInfo.role}\nTelegram ID: ${userInfo.telegram_id}`);
+        const userInfo = await getUser(ctx.from.id);
+        ctx.session.userSession = null; // Clear session
+        return ctx.reply(userInfo ? `ℹ️ Info for you:\nRole: ${userInfo.role}\nTelegram ID: ${userInfo.telegram_id}` : '⚠️ Your information was not found.');
       }
 
       if (!text.startsWith('@')) {
@@ -69,29 +65,25 @@ userCommand.on('message', async (ctx) => {
       } else if (session.action === 'setadmin') {
         const userToPromote = await getUserByUsername(session.username);
         if (!userToPromote) {
-          userSessions.delete(userId);
+          ctx.session.userSession = null; // Clear session
           return ctx.reply(`⚠️ User @${session.username} not found.`);
         }
         await upsertUser(userToPromote.telegram_id, session.username, 'admin');
-        userSessions.delete(userId);
+        ctx.session.userSession = null; // Clear session
         return ctx.reply(`✅ User @${session.username} promoted to 'admin'.`);
       } else if (session.action === 'delete') {
         const userToDelete = await getUserByUsername(session.username);
         if (!userToDelete) {
-          userSessions.delete(userId);
+          ctx.session.userSession = null; // Clear session
           return ctx.reply(`⚠️ User @${session.username} not found.`);
         }
         await deleteUser(userToDelete.telegram_id);
-        userSessions.delete(userId);
+        ctx.session.userSession = null; // Clear session
         return ctx.reply(`✅ User @${session.username} deleted successfully.`);
       } else if (session.action === 'info') {
         const userInfo = await getUserByUsername(session.username);
-        if (!userInfo) {
-          userSessions.delete(userId);
-          return ctx.reply(`⚠️ User @${session.username} not found.`);
-        }
-        userSessions.delete(userId);
-        return ctx.reply(`ℹ️ Info for @${session.username}\nRole: ${userInfo.role}\nTelegram ID: ${userInfo.telegram_id}`);
+        ctx.session.userSession = null; // Clear session
+        return ctx.reply(userInfo ? `ℹ️ Info for @${session.username}\nRole: ${userInfo.role}\nTelegram ID: ${userInfo.telegram_id}` : `⚠️ User @${session.username} not found.`);
       }
       break;
 
@@ -101,19 +93,18 @@ userCommand.on('message', async (ctx) => {
       }
       session.telegram_id = parseInt(text, 10);
 
-      // Add the user to the database
       try {
         await upsertUser(session.telegram_id, session.username, 'user');
-        userSessions.delete(userId);
+        ctx.session.userSession = null; // Clear session
         return ctx.reply(`✅ User @${session.username} added successfully.`);
       } catch (error) {
         console.error('❌ Error adding user:', error.message);
-        userSessions.delete(userId);
+        ctx.session.userSession = null; // Clear session
         return ctx.reply('⚠️ Failed to add user. Please try again.');
       }
 
     default:
-      userSessions.delete(userId);
+      ctx.session.userSession = null; // Clear session
       return ctx.reply('⚠️ Something went wrong. Please start over.');
   }
 });

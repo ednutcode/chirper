@@ -1,13 +1,13 @@
 // bot.js
-const { Bot } = require('grammy');
+const { Bot, session } = require('grammy');
+
 const config = require('./config');
 const { initDatabase, getDb } = require('./db');
 
 // Import command handlers
 const callCommand = require('./commands/call');
-const helpCommand = require('./commands/help');
+const helpCommand = require('./commands/help'); // Import the helpCommand middleware
 const userCommand = require('./commands/user');
-
 // Init DB
 initDatabase().then(async () => {
   console.log('✅ Database initialized successfully');
@@ -29,11 +29,21 @@ initDatabase().then(async () => {
 
 const bot = new Bot(config.telegramToken);
 
+// Define session structure
+const initialSession = () => ({
+  callSession: null, // For call command
+  userSession: null, // For user command
+});
+
+// Initialize session middleware
+bot.use(session({ initial: initialSession }));
+
 // Register commands
 console.log('ℹ️ Registering commands...');
 bot.use(helpCommand);
-bot.use(userCommand);
 bot.use(callCommand);
+bot.use(userCommand);
+
 console.log('✅ Commands registered successfully');
 
 // Log full stack trace
