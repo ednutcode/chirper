@@ -46,4 +46,3 @@ helpCommand.command('help', async (ctx) => {
 });
 
 module.exports = helpCommand; // Export the generateHelpMessage function
-

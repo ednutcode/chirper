@@ -3,7 +3,13 @@
 **/example.env
 
 # Ignore node dependencies
-node_modules/
+telegram/node_modules/
+api/node_modules/
+
+telegram/package-lock.json
+api/package-lock.json
+
+
 
 # OS-specific
 .DS_Store
