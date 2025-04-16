@@ -53,7 +53,7 @@ module.exports = function(request, response) {
          * Create the TwiML response to return, adding the audio URL
          */
         var end = '<?xml version="1.0" encoding="UTF-8"?><Response><Play>' + endurl + '</Play></Response>';
-        var ask = '<?xml version="1.0" encoding="UTF-8"?><Response><Gather timeout="8" numDigits="' + numdigits + '"><Say>Bonjour ' + name + ',</Say><Play loop="4">' + askurl + '</Play></Gather></Response>';
+        var ask = '<?xml version="1.0" encoding="UTF-8"?><Response><Gather timeout="8" numDigits="' + numdigits + '"><Say>Hello! ' + name + ',</Say><Play loop="4">' + askurl + '</Play></Gather></Response>';
 
         /**
          * If the user sent the code, add it to the database and return the end audio: end of the call

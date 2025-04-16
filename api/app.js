@@ -30,7 +30,7 @@ var app = express();
 app.use(express.urlencoded({
     extended: true
 }));
-app.use(morgan('combined')); // Only used for debugging HTTP requests
+// app.use(morgan('combined')); // Only used for debugging HTTP requests
 
 app.post('/voice/:apipassword', auth, voice);
 app.post('/status/:apipassword', auth, status);

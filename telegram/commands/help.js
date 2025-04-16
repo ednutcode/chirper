@@ -1,7 +1,13 @@
+/**
+ * Command to display help information.
+ * This command provides a list of available commands and supported call services.
+ */
+
 const { Composer } = require('grammy');
 
 const helpCommand = new Composer();
 
+// List of supported call services
 const callServices = [
     'Google',
     'Snapchat',
@@ -15,6 +21,11 @@ const callServices = [
     'Bank: bypass 3D Secure',
 ];
 
+/**
+ * Generates the help message with available commands and supported services.
+ * 
+ * @returns {string} The formatted help message.
+ */
 const generateHelpMessage = () => `
 <b>Help, Commands & Information</b>
 
@@ -34,7 +45,10 @@ const generateHelpMessage = () => `
 ${callServices.map((service, index) => `${index + 1}. ${service}`).join('\n')}
 `;
 
-// Handle the /help command
+/**
+ * Command: /help
+ * Sends the help message to the user.
+ */
 helpCommand.command('help', async (ctx) => {
     try {
         const helpMessage = generateHelpMessage();
@@ -45,4 +59,4 @@ helpCommand.command('help', async (ctx) => {
     }
 });
 
-module.exports = helpCommand; // Export the generateHelpMessage function
+module.exports = helpCommand;

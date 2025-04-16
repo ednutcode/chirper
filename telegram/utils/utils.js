@@ -1,5 +1,17 @@
-const { getDb } = require('../db');
+/**
+ * Utility functions for interacting with the database.
+ * These functions provide CRUD operations for the `users` table.
+ */
 
+const { getDb } = require('../setup');
+
+/**
+ * Fetches the role of a user by their Telegram ID.
+ * 
+ * @param {number} telegramId - The Telegram ID of the user.
+ * @returns {string|null} The role of the user, or null if the user is not found.
+ * @throws {Error} If the database query fails.
+ */
 async function getUserRole(telegramId) {
   try {
     const db = getDb();
@@ -14,6 +26,13 @@ async function getUserRole(telegramId) {
   }
 }
 
+/**
+ * Fetches a user by their Telegram ID.
+ * 
+ * @param {number} telegramId - The Telegram ID of the user.
+ * @returns {Object|null} The user object, or null if the user is not found.
+ * @throws {Error} If the database query fails.
+ */
 async function getUser(telegramId) {
   try {
     const db = getDb();
@@ -28,6 +47,13 @@ async function getUser(telegramId) {
   }
 }
 
+/**
+ * Fetches a user by their username.
+ * 
+ * @param {string} username - The username of the user.
+ * @returns {Object|null} The user object, or null if the user is not found.
+ * @throws {Error} If the database query fails.
+ */
 async function getUserByUsername(username) {
   try {
     const db = getDb();
@@ -42,6 +68,14 @@ async function getUserByUsername(username) {
   }
 }
 
+/**
+ * Inserts or updates a user in the database.
+ * 
+ * @param {number} telegramId - The Telegram ID of the user.
+ * @param {string} username - The username of the user.
+ * @param {string} [role='user'] - The role of the user.
+ * @throws {Error} If the database query fails.
+ */
 async function upsertUser(telegramId, username, role = 'user') {
   try {
     const db = getDb();
@@ -56,6 +90,12 @@ async function upsertUser(telegramId, username, role = 'user') {
   }
 }
 
+/**
+ * Deletes a user from the database.
+ * 
+ * @param {number} telegramId - The Telegram ID of the user.
+ * @throws {Error} If the database query fails.
+ */
 async function deleteUser(telegramId) {
   try {
     const db = getDb();

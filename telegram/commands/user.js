@@ -1,16 +1,29 @@
-// commands/user.js
+/**
+ * Command to manage users (add, delete, promote, fetch info).
+ * This command allows admins to perform user-related operations via a guided session.
+ */
+
 const { Composer } = require('grammy');
 const { upsertUser, deleteUser, getUser, getUserByUsername } = require('../utils/utils');
+const onlyAdmin = require('../middleware/onlyAdmin');
 
 const userCommand = new Composer();
 
-userCommand.command('user', async (ctx) => {
+/**
+ * Command: /user
+ * Starts a user management session and prompts the admin for an action.
+ */
+userCommand.command('user', onlyAdmin, async (ctx) => {
   ctx.session.userSession = { step: 'command' }; // Initialize session
   return ctx.reply(
     'What would you like to do?\nOptions:\n1. Add User\n2. Set Admin\n3. Delete User\n4. Get User Info\n\nReply with the number of your choice:'
   );
 });
 
+/**
+ * Command: /canceluser
+ * Cancels an active user management session.
+ */
 userCommand.command('canceluser', async (ctx) => {
   if (ctx.session.userSession) {
     ctx.session.userSession = null; // Clear session
@@ -19,6 +32,10 @@ userCommand.command('canceluser', async (ctx) => {
   return ctx.reply('ℹ️ No active user session found.');
 });
 
+/**
+ * Middleware: Handles user management actions based on the session state.
+ * Supports adding, promoting, deleting, and fetching user information.
+ */
 userCommand.on('message', async (ctx, next) => {
   const session = ctx.session.userSession;
   if (!session) return next(); // No active user session, pass to next middleware
@@ -27,6 +44,7 @@ userCommand.on('message', async (ctx, next) => {
 
   switch (session.step) {
     case 'command':
+      // Determine the action based on user input
       if (text === '1') {
         session.action = 'add';
         session.step = 'username';
@@ -48,6 +66,7 @@ userCommand.on('message', async (ctx, next) => {
       }
 
     case 'username':
+      // Handle username input for different actions
       if (session.action === 'info' && text.toLowerCase() === 'me') {
         const userInfo = await getUser(ctx.from.id);
         ctx.session.userSession = null; // Clear session
@@ -88,6 +107,7 @@ userCommand.on('message', async (ctx, next) => {
       break;
 
     case 'telegram_id':
+      // Handle Telegram ID input for adding a user
       if (!text.match(/^\d+$/)) {
         return ctx.reply('❌ Invalid Telegram ID. Please enter a valid numeric Telegram ID:');
       }
