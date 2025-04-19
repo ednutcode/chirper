@@ -1,5 +1,3 @@
-// middleware/onlyAdmin.js
-
 /**
  * Middleware to restrict access to admin users.
  * This middleware checks the role of the user and ensures only admins can proceed.
