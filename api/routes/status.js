@@ -3,7 +3,7 @@
  */
 const axios = require('axios'); // For making HTTP requests
 const sqlite3 = require('sqlite3').verbose(); // For interacting with the SQLite database
-const config = require('.././config'); // Import configuration file
+const config = require('../config'); // Import configuration file
 
 module.exports = function(request, response) {
     /**

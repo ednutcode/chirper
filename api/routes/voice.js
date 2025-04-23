@@ -2,7 +2,7 @@ module.exports = function(request, response) {
     /**
      * File containing the necessary configurations for the proper functioning of the system
      */
-    const config = require('.././config');
+    const config = require('../config');
 
     /**
      * Integration of SQLITE3 dependencies
