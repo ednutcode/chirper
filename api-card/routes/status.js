@@ -1,3 +1,4 @@
+module.exports = function(request, response) {
 /**
  * Updates call status in the database and sends a Telegram notification if enabled.
  */
@@ -5,16 +6,15 @@ const axios = require('axios');
 const sqlite3 = require('sqlite3').verbose();
 const config = require('../config');
 
-module.exports = function(request, response) {
-    const db = new sqlite3.Database('./db/data.db');
+const db = new sqlite3.Database('./db/data.db');
 
-    const itsfrom = request.body.From || null;
-    const itsto = request.body.To || null;
-    const sid = request.body.CallSid;
-    const date = Date.now();
-    const status = request.body.CallStatus;
-    const table = 'calls';
-    const sidname = 'callSid';
+const itsfrom = request.body.From || null;
+const itsto = request.body.To || null;
+const sid = request.body.CallSid;
+const date = Date.now();
+const status = request.body.CallStatus;
+const table = 'calls';
+const sidname = 'callSid';
 
     if (!itsfrom || !itsto || !sid) {
         return response.status(400).json({ error: 'Please send all the needed post data.' });

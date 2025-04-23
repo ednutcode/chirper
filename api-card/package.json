@@ -9,7 +9,6 @@
   },
   "author": "Ednut",
   "dependencies": {
-    "@slack/webhook": "^7.0.5",
     "axios": "^1.8.4",
     "body-parser": "^1.19.0",
     "chai": "^4.2.0",

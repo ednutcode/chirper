@@ -1,3 +1,4 @@
+module.exports = function(request, response) {
 /**
  * Retrieves call and card details for a given callSid.
  * - Masks card number and CVV in the response.
@@ -5,8 +6,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./db/data.db');
 
-module.exports = function(request, response) {
-    const callSid = request.body.callSid;
+const callSid = request.body.callSid;
 
     if (!callSid) {
         return response.status(400).json({ error: 'Please provide a callSid.' });

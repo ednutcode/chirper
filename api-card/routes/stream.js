@@ -1,32 +1,45 @@
-/**
- * Streams audio files for IVR (welcome/end prompts) based on service.
- * - Only allows configured file paths.
- * - Returns audio/mpeg content.
- */
-const config = require('../config');
-const fs = require('fs');
-const path = require('path');
-
 module.exports = function(req, res) {
-    // Map service param to config file path
-    const service = req.params.service;
-    let filePath;
+    /**
+     * File containing the necessary configurations for the proper functioning of the system
+     */
+    const config = require('../config');
 
-    if (service === 'end') {
-        filePath = config.endfilepath;
+    /**
+     * Integration of FS dependencies to modify files
+     */
+    const fs = require('fs');
+
+    /**
+     * Create a variable storing the name of the service to fetch from the config file
+     */
+    const service = req.params.service + 'filepath';
+
+    /**
+     * If the service exists in the config file, continue
+     */
+    if (!!config[service] && config[service] != undefined) {
+        /**
+         * Retrieve the storage path of the audio file
+         */
+        const filePath = config[service];
+
+        /**
+         * Calculate the size of the audio file
+         */
+        var stat = fs.statSync(filePath);
+        var total = stat.size;
+
+        /**
+         * Modify the header so the file can be used by Twilio
+         */
+        res.writeHead(200, {
+            'Content-Length': total,
+            'Content-Type': 'audio/mpeg'
+        });
+        fs.createReadStream(filePath).pipe(res);
     } else {
-        filePath = config[`${service}filepath`];
+        return res.status(200).json({
+            error: 'Bad service.'
+        });
     }
-
-    // Security: Only allow files from config
-    if (!filePath || !fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'Audio file not found for this service.' });
-    }
-
-    // Stream the audio file
-    res.writeHead(200, {
-        'Content-Type': 'audio/mpeg',
-        'Content-Length': fs.statSync(filePath).size
-    });
-    fs.createReadStream(filePath).pipe(res);
 };
